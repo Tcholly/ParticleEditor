@@ -2,6 +2,7 @@
 #include <Difu/Particles/ParticleEmitter.h>
 #include <Difu/Utils/Logger.h>
 
+#include <cerrno>
 #include <cmath>
 #include <cstddef>
 #include <fstream>
@@ -19,6 +20,10 @@ namespace MainScreen
 	static ParticleEmitter emitter;
 	static bool askSave = false;
 	static bool askOpen = false;
+	static RenderTexture2D viewportTexture;
+	static ImVec2 viewportPosition = { 0.0f, 0.0f };
+	static ImVec2 viewportSize = { 0.0f, 0.0f };
+	static bool viewportFocused = false;
 
 	std::string trim(const std::string& str)
 	{
@@ -122,6 +127,11 @@ namespace MainScreen
 	static void Open(std::string filename)
 	{
 		std::ifstream in(filename);
+		if (!in)
+		{
+			Logger::Error("Could not open {}: {}", filename, std::strerror(errno));
+			return;
+		}
 		std::stringstream ss;
 		ss << in.rdbuf();
 		in.close();
@@ -175,6 +185,7 @@ namespace MainScreen
 		SetExitKey(0);
 
 		rlImGuiSetup(false);
+		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	}
 
 	static void Unload()
@@ -199,14 +210,37 @@ namespace MainScreen
 
 		if (ctrl && IsKeyPressed(KEY_O))
 			askOpen = true;
-		if (!ImGui::GetIO().WantCaptureMouse && IsMouseButtonDown(MOUSE_LEFT_BUTTON))
+		if (viewportFocused && CheckCollisionPointRec(GetMousePosition(), {viewportPosition.x, viewportPosition.y, viewportSize.x, viewportSize.y}) && IsMouseButtonDown(MOUSE_LEFT_BUTTON))
+		{
+			SetMouseOffset(-viewportPosition.x, -viewportPosition.y);
 			emitter.SetSpawnPosition(GetMousePosition());
+			SetMouseOffset(0, 0);
+		}
+	}
+
+	static void RenderViewport()
+	{
+		BeginTextureMode(viewportTexture);
+		ClearBackground(WHITE);
+		emitter.Render();
+		EndTextureMode();
+	}
+
+	static void OnViewportResize(int width, int height)
+	{
+		emitter.SetSpawnPosition({width / 2.0f, height / 2.0f});
+
+		UnloadRenderTexture(viewportTexture);
+		viewportTexture = LoadRenderTexture(width, height);
+
+		RenderViewport();
 	}
 
 	static void Render()
 	{
 		ClearBackground(WHITE);
-		emitter.Render();
+		
+		RenderViewport();
 
 		rlImGuiBegin();
 
@@ -226,16 +260,34 @@ namespace MainScreen
 			ImGui::EndMainMenuBar();
 		}
 
+		// Dockspace
+		ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+
+		// Viewport
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+		ImGui::Begin("Viewport");
+		ImVec2 viewportNewSize = ImGui::GetContentRegionAvail();
+		if (viewportNewSize.x != viewportSize.x || viewportNewSize.y != viewportSize.y)
+		{
+			viewportSize = viewportNewSize;
+			OnViewportResize(viewportSize.x, viewportSize.y);
+		}
+		rlImGuiImageRect(&viewportTexture.texture, viewportSize.x, viewportSize.y, {0.0f, 0.0f, viewportSize.x, -viewportSize.y});
+		viewportFocused = ImGui::IsWindowFocused();
+		viewportPosition = ImGui::GetWindowPos();
+		ImGui::End();
+		ImGui::PopStyleVar();
+		
+
 		// Properties
-		bool open = true;
-		ImGui::Begin("Property editor", &open, 0);
+		ImGui::Begin("Property editor");
 
 		float lifetime = emitter.GetParticleLifetime();
-		ImGui::InputFloat("Lifetime", &lifetime, 0.01f);	
+		ImGui::DragFloat("Lifetime", &lifetime, 0.01f);	
 		emitter.SetParticleLifetime(lifetime);
 
 		Vector2 particleResolution = emitter.GetParticleResolution();
-		ImGui::InputFloat2("Resolution", &particleResolution.x);
+		ImGui::DragFloat2("Resolution", &particleResolution.x, 0.01f);
 		emitter.SetParticleResolution(particleResolution);
 
 		float minSizeFactor = emitter.GetParticleMinSizeFactor();
@@ -300,7 +352,7 @@ namespace MainScreen
 		// Save dialog
 		if (askSave)
 		{
-			ImGui::Begin("Save as...", &open);
+			ImGui::Begin("Save as...");
 
 			if (ImGui::InputTextWithHint("Filename", "out.txt", textBuffer, 128, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Save"))
 			{
@@ -317,7 +369,7 @@ namespace MainScreen
 		// Open dialog
 		if (askOpen)
 		{
-			ImGui::Begin("Open", &open);
+			ImGui::Begin("Open");
 
 			if (ImGui::InputTextWithHint("Filename", "in.txt", textBuffer, 128, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Open"))
 			{
@@ -335,7 +387,6 @@ namespace MainScreen
 
 	static void OnResize(int width, int height)
 	{
-		emitter.SetSpawnPosition({width / 2.0f, height / 2.0f});
 	}
 
 	Screen GetScreen()

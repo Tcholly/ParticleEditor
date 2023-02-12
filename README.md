@@ -9,4 +9,5 @@ Particle editor for [Difu](https://github.com/Tcholly/Difu)'s particles using [I
 
 # TODO
 - Add better save and open dialogs
-- Ability to bind a value to a function of time (like sin(t)
+- Save as a file supported by the [ResourceManager](https://github.com/Tcholly/ResourceManager)
+- Ability to bind a value to a function of time (like sin(t))
