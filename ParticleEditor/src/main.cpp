@@ -5,7 +5,7 @@
 
 int main()
 {
-	if (WindowManager::InitWindow("Chess", 800, 480, true))
+	if (WindowManager::InitWindow("Particle Editor", 800, 480, true))
 	{
 		SetTargetFPS(60);
 		ScreenManager::ChangeScreen(MainScreen::GetScreen());

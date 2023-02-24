@@ -1,0 +1,18 @@
+Bob
+{
+	LIFETIME : float : 2.93;
+	RESOLUTION : vector2f : { 1, 1 };
+	MIN_SIZE_FACTOR : float : 1;
+	MAX_SIZE_FACTOR : float : 10;
+	VELOCITY : vector2f : { 100, 0 };
+	ACCELERATION : vector2f : { 0, 0 };
+	CENTRIPETAL_ACCELERATION : float : 70;
+	ROTATION : float : 0;
+	ROTATION_VELOCITY : float : 0;
+	ROTATION_ACCELERATION : float : 0;
+	START_COLOR : color : #FFF146B5;
+	END_COLOR : color : #00E5EC17;
+	SPAWN_INTERVAL : float : 0.01;
+	RANDOMNESS : float : 0.4;
+	SPREAD : float : 6.28319;
+}

@@ -1,18 +1,18 @@
 #include "MainScreen.h"
+
+#include "Utils/ParticleSerializer.h"
+#include "Utils/ConsoleLog.h"
+
 #include <Difu/Particles/ParticleEmitter.h>
 #include <Difu/Utils/Logger.h>
 
-#include <cerrno>
 #include <cmath>
-#include <cstddef>
-#include <fstream>
-#include <sstream>
-#include <map>
 #include <fmt/core.h>
 #include <raylib.h>
 #include <rlImGui.h>
 #include <rlImGuiColors.h>
 #include <imgui.h>
+#include <imgui_stdlib.h>
 #include <string>
 
 namespace MainScreen
@@ -24,158 +24,18 @@ namespace MainScreen
 	static ImVec2 viewportPosition = { 0.0f, 0.0f };
 	static ImVec2 viewportSize = { 0.0f, 0.0f };
 	static bool viewportFocused = false;
+	static ConsoleLog log;
 
-	std::string trim(const std::string& str)
+	static void PrintFunction(std::string value)
 	{
-		size_t first = str.find_first_not_of(" \t");
-		if (std::string::npos == first)
-		{
-			return str;
-		}
-		size_t last = str.find_last_not_of(" \t");
-		return str.substr(first, (last - first + 1));
+		log.Print(value);
 	}
 
-	static void OutFloat(std::ofstream& out, const std::string& name, float value)
-	{
-		out << name << " = " << value << "\n";
-	}
-
-	static void OutVector2(std::ofstream& out, const std::string& name, Vector2 value)
-	{
-		out << name << " = { " << value.x << ", " << value.y << " }\n";
-	}
-
-	static void OutColor(std::ofstream& out, const std::string& name, Color value)
-	{
-		out << name << " = { " << (int)value.r << ", " << (int)value.g << ", " << (int)value.b << ", " << (int)value.a << " }\n";
-	}
-
-	static void Save(std::string filename)
-	{
-		std::ofstream out(filename);
-		OutFloat(out, "lifetime", emitter.GetParticleLifetime());
-		OutVector2(out, "resolution", emitter.GetParticleResolution());
-		OutFloat(out, "minSizeFactor", emitter.GetParticleMinSizeFactor());
-		OutFloat(out, "maxSizeFactor", emitter.GetParticleMaxSizeFactor());
-		OutVector2(out, "velocity", emitter.GetSpawnVelocity());
-		OutVector2(out, "acceleration", emitter.GetParticleAcceleration());
-		OutFloat(out, "centripetalAcceleration", emitter.GetCentripetalAcceleration());
-		OutFloat(out, "rotation", emitter.GetParticleSpawnRotation());
-		OutFloat(out, "rotationVelocity", emitter.GetParticleSpawnRotationVelocity());
-		OutFloat(out, "rotationAcceleration", emitter.GetParticleRotationAcceleration());
-		OutColor(out, "startColor", emitter.GetStartColor());
-		OutColor(out, "endColor", emitter.GetEndColor());
-		OutFloat(out, "spawnInterval", emitter.GetSpawnInterval());
-		OutFloat(out, "randomness", emitter.GetRandomness());
-		OutFloat(out, "spread", emitter.GetSpread());
-		out.close();
-
-		LOG_INFO("Saved emitter to {}", filename);
-		// TODO: Show that the file was saved
-		// TODO: Ask for filename in a better way
-	}
-
-	// TODO: Error checking
-	float InGetFloat(std::map<std::string, std::string>& map, const std::string& value)
-	{
-		std::string floatStr = map.at(value);
-		return std::stof(floatStr);
-	}
-
-	Vector2 InGetVector2(std::map<std::string, std::string>& map, const std::string& value)
-	{
-		std::string vector2Str = map.at(value);
-		vector2Str = trim(vector2Str.substr(1, vector2Str.size() - 2));
-
-		size_t comma = vector2Str.find(",");
-		std::string xStr = trim(vector2Str.substr(0, comma)); 
-		std::string yStr = trim(vector2Str.substr(comma + 1)); 
-
-		float x = std::stof(xStr);
-		float y = std::stof(yStr);
-
-		return {x, y};
-	}
-
-	Color InGetColor(std::map<std::string, std::string>& map, const std::string& value)
-	{
-		std::string colorStr = map.at(value);
-
-		colorStr = trim(colorStr.substr(1, colorStr.size() - 2));
-
-		size_t comma = colorStr.find(",");
-		std::string rStr = trim(colorStr.substr(0, comma)); 
-		colorStr = trim(colorStr.substr(comma + 1)); 
-
-		comma = colorStr.find(",");
-		std::string gStr = trim(colorStr.substr(0, comma)); 
-		colorStr = trim(colorStr.substr(comma + 1)); 
-
-		comma = colorStr.find(",");
-		std::string bStr = trim(colorStr.substr(0, comma)); 
-		std::string aStr = trim(colorStr.substr(comma + 1)); 
-
-		int r = std::stoi(rStr);
-		int g = std::stoi(gStr);
-		int b = std::stoi(bStr);
-		int a = std::stoi(aStr);
-
-		return {(unsigned char)r, (unsigned char)g, (unsigned char)b, (unsigned char)a};
-	}
-
-	static void Open(std::string filename)
-	{
-		std::ifstream in(filename);
-		if (!in)
-		{
-			Logger::Error("Could not open {}: {}", filename, std::strerror(errno));
-			return;
-		}
-		std::stringstream ss;
-		ss << in.rdbuf();
-		in.close();
-
-		std::map<std::string, std::string> exprs;
-
-		std::string line;
-		while (std::getline(ss, line))
-		{
-			size_t eqPos = line.find("=");
-			if (eqPos == line.npos)
-			{
-				LOG_WARN("Couldn't resolve line: \"{}\"", line);
-				continue;
-			}
-			std::string name = line.substr(0, eqPos);
-			std::string value = line.substr(eqPos + 1);
-			name = trim(name);
-			value = trim(value);
-
-			exprs[name] = value;
-		}
-
-		emitter.SetParticleLifetime(InGetFloat(exprs, "lifetime"));
-		emitter.SetParticleResolution(InGetVector2(exprs, "resolution"));
-		emitter.SetParticleMinSizeFactor(InGetFloat(exprs, "minSizeFactor"));
-		emitter.SetParticleMaxSizeFactor(InGetFloat(exprs, "maxSizeFactor"));
-		emitter.SetSpawnVelocity(InGetVector2(exprs, "velocity"));
-		emitter.SetParticleAcceleration(InGetVector2(exprs, "acceleration"));
-		emitter.SetCentripetalAcceleration(InGetFloat(exprs, "centripetalAcceleration"));
-		emitter.SetParticleSpawnRotation(InGetFloat(exprs, "rotation"));
-		emitter.SetParticleSpawnRotationVelocity(InGetFloat(exprs, "rotationVelocity"));
-		emitter.SetParticleRotationAcceleration(InGetFloat(exprs, "rotationAcceleration"));
-		emitter.SetStartColor(InGetColor(exprs, "startColor"));
-		emitter.SetEndColor(InGetColor(exprs, "endColor"));
-		emitter.SetSpawnInterval(InGetFloat(exprs, "spawnInterval"));
-		emitter.SetRandomness(InGetFloat(exprs, "randomness"));
-		emitter.SetSpread(InGetFloat(exprs, "spread"));
-	}
-
-	static char textBuffer[128];
 
 	static void Load()
 	{
+		log.Load({10.0f, GetScreenHeight() - 310.0f, 300.0f, 300.0f}, 7.0f, {123, 201, 34, 255});
+		Logger::Bind(&PrintFunction);
 		Particle baseParticle;
 		baseParticle.lifetime = 1.0f;
 		baseParticle.velocity = {100.0f, 0.0f};
@@ -191,6 +51,7 @@ namespace MainScreen
 	static void Unload()
 	{
 		rlImGuiShutdown();
+		log.Unload();
 	}
 
 	// static float t = 0.0f;
@@ -202,11 +63,14 @@ namespace MainScreen
 		// TODO: Add feature to bind value to a finction of time
 
 		emitter.Update(dt);
+		log.Update(dt);
 
 		bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
 
 		if (ctrl && IsKeyPressed(KEY_S))
+		{
 			askSave = true;	
+		}
 
 		if (ctrl && IsKeyPressed(KEY_O))
 			askOpen = true;
@@ -234,6 +98,7 @@ namespace MainScreen
 		viewportTexture = LoadRenderTexture(width, height);
 
 		RenderViewport();
+		log.SetDestinationBounds({10.0f, height - 310.0f, (float)width - 20.0f, 300.0f});
 	}
 
 	static void Render()
@@ -354,10 +219,15 @@ namespace MainScreen
 		{
 			ImGui::Begin("Save as...");
 
-			if (ImGui::InputTextWithHint("Filename", "out.txt", textBuffer, 128, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Save"))
+			static std::string emitterNameBuf;
+			static std::string filenameBuf;
+			ImGui::InputTextWithHint("Emitter name", "MyEmitter", &emitterNameBuf, ImGuiInputTextFlags_EscapeClearsAll);
+			if (ImGui::InputTextWithHint("Filename", "out.txt", &filenameBuf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Save"))
 			{
 				askSave = false;
-				Save(std::string(textBuffer));
+				// TODO: Show that the file was saved
+				// TODO: Ask for filename in a better way
+				ParticleSerializer::Serialize(filenameBuf, emitterNameBuf, emitter);
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Cancel"))
@@ -371,10 +241,11 @@ namespace MainScreen
 		{
 			ImGui::Begin("Open");
 
-			if (ImGui::InputTextWithHint("Filename", "in.txt", textBuffer, 128, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Open"))
+			static std::string filenameBuf;
+			if (ImGui::InputTextWithHint("Filename", "in.txt", &filenameBuf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Open"))
 			{
 				askOpen = false;
-				Open(std::string(textBuffer));
+				ParticleSerializer::Deserialize(filenameBuf, &emitter);
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Cancel"))
@@ -383,10 +254,14 @@ namespace MainScreen
 			ImGui::End();
 		}
 		rlImGuiEnd();
+
+		log.Render(true);
 	}
 
 	static void OnResize(int width, int height)
 	{
+		(void)width;
+		(void)height;
 	}
 
 	Screen GetScreen()
