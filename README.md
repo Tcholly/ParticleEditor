@@ -9,5 +9,4 @@ Particle editor for [Difu](https://github.com/Tcholly/Difu)'s particles using [I
 
 
 # TODO
-- Add better save and open dialogs
 - Ability to bind a value to a function of time (like sin(t))
