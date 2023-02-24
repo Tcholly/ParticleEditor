@@ -32,6 +32,7 @@ project "ParticleEditor"
         "Dependencies/Raylib/%{cfg.system}/include",
 		"Dependencies/imgui/include",
         "Dependencies/fmt/%{cfg.system}/include",
+        "Dependencies/nfd/include",
 		"../Difu/bin/Difu/%{cfg.longname}/include"
     }
 
@@ -39,6 +40,7 @@ project "ParticleEditor"
         "Dependencies/Raylib/%{cfg.system}/lib",
 		"Dependencies/imgui/lib",
         "Dependencies/fmt/%{cfg.system}/lib",
+		"Dependencies/nfd/lib",
 		"../Difu/bin/Difu/%{cfg.longname}"
     }
 
@@ -47,7 +49,7 @@ project "ParticleEditor"
 		linkoptions { "-static-libstdc++" } -- filesystem dll not linking
     
     filter { "system:Linux" }
-        links { "raylib", "fmt", "Difu", "rlImGui" } -- , "m", "dl", "rt", "X11"
-
+		links { "raylib", "fmt", "Difu", "rlImGui", "nfd" } -- , "m", "dl", "rt", "X11"
+		linkoptions { "`pkg-config gtk+-3.0 --libs`" }
     filter {}
 

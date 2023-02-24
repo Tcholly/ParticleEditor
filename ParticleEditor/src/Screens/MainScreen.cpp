@@ -14,6 +14,7 @@
 #include <imgui.h>
 #include <imgui_stdlib.h>
 #include <string>
+#include <nfd.hpp>
 
 namespace MainScreen
 {
@@ -44,6 +45,7 @@ namespace MainScreen
 
 		SetExitKey(0);
 
+		NFD::Init();
 		rlImGuiSetup(false);
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	}
@@ -52,6 +54,7 @@ namespace MainScreen
 	{
 		rlImGuiShutdown();
 		log.Unload();
+		NFD::Quit();
 	}
 
 	// static float t = 0.0f;
@@ -217,14 +220,34 @@ namespace MainScreen
 		// Save dialog
 		if (askSave)
 		{
+
+
+
+
 			ImGui::Begin("Save as...");
 
 			static std::string emitterNameBuf;
 			static std::string filenameBuf;
 			ImGui::InputTextWithHint("Emitter name", "MyEmitter", &emitterNameBuf, ImGuiInputTextFlags_EscapeClearsAll);
-			if (ImGui::InputTextWithHint("Filename", "out.txt", &filenameBuf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Save"))
+			
+
+			if (ImGui::Button("..."))
 			{
-				askSave = false;
+				NFD::UniquePath outPath;
+				nfdfilteritem_t filterItem[2] = {{"Save file", "save"}, {"Text file", "txt"}};
+				nfdresult_t result = NFD::SaveDialog(outPath, filterItem, 2, filenameBuf.c_str(), filenameBuf.c_str());
+
+				if (result == NFD_OKAY)
+					filenameBuf = outPath.get();
+				else if (result != NFD_CANCEL)
+        			LOG_ERROR(NFD::GetError());
+			}
+
+
+			ImGui::SameLine();
+			bool entered = ImGui::InputTextWithHint("Filename", "out.txt", &filenameBuf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll);
+			if (entered || ImGui::Button("Save"))
+			{
 				// TODO: Show that the file was saved
 				// TODO: Ask for filename in a better way
 				ParticleSerializer::Serialize(filenameBuf, emitterNameBuf, emitter);
@@ -242,7 +265,19 @@ namespace MainScreen
 			ImGui::Begin("Open");
 
 			static std::string filenameBuf;
-			if (ImGui::InputTextWithHint("Filename", "in.txt", &filenameBuf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll) || ImGui::Button("Open"))
+			if (ImGui::Button("..."))
+			{
+				NFD::UniquePath outPath;
+				nfdfilteritem_t filterItem[2] = {{"Save file", "save"}, {"Text file", "txt"}};
+				nfdresult_t result = NFD::OpenDialog(outPath, filterItem, 2, filenameBuf.c_str());
+				if (result == NFD_OKAY)
+					filenameBuf = outPath.get();
+				else if (result != NFD_CANCEL)
+        			LOG_ERROR(NFD::GetError());
+			}
+			ImGui::SameLine();
+			bool entered = ImGui::InputTextWithHint("Filename", "in.txt", &filenameBuf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll);
+			if (entered || ImGui::Button("Open"))
 			{
 				askOpen = false;
 				ParticleSerializer::Deserialize(filenameBuf, &emitter);
